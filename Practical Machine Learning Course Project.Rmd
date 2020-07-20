@@ -1,0 +1,122 @@
+---
+title: "Practical Machine Learning Course Project"
+author: "Abhijit Das"
+date: "20/07/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## OVERVIEW
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+# DOWNLOAD DATA
+The training data for this project are available here: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+The test data are available here: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+# Approach
+We will be using Supervised Classification Machine Learning technique to work on this project.
+
+# Load libraries
+```{r load libraries}
+library(kernlab)
+library(caret)
+library(tidyverse)
+```
+
+# Load train and test dataset from csv
+```{r Load train and test dataset from csv}
+training <- read.csv("C:\\Users\\AbhijitDas\\Desktop\\pml-training.csv")
+testing <- read.csv("C:\\Users\\AbhijitDas\\Desktop\\pml-testing.csv")
+
+nrow(training)
+nrow(testing)
+
+names(training)
+names(testing)
+```
+
+# Number of observations in each class
+```{r Number of observations in each class}
+table(training$classe)
+```
+
+# Feature selection processing for both training and test dataset
+
+# Filter column names which are having missing values
+```{r Filter column names which are having missing values}
+col <- names(which(sapply(training, function(x) sum(is.na(x))) ==0))
+training1 <- training[col]
+```
+
+# Classe column needs to be filtered from Test data set
+```{r classe column needs to be filtered}
+testing1 <- testing[col[-93]]
+```
+
+# Filter column names which relates to id and timestamp
+```{r Filter column names which relates to id and timestamp}
+training1 <- training1[,-(1:5)]
+testing1 <- testing1[,-(1:5)]
+```
+
+# Filter column name which have near zero variance
+```{r Filter column name which have near zero variance}
+nzv<-nearZeroVar(training1)
+training1<-training1[,-nzv]
+testing1<-testing1[,-nzv]
+```
+
+# Apply PCA to reduce dimensionality ;otherwise model training will be expensive
+```{r Apply PCA to reduce dimensionality}
+pca_var <-prcomp(training1[,-54])
+train.data <- data.frame(classe=training1$classe, pca_var$x)
+```
+
+# Apply trained PCA model to predict principal components for test data
+```{r Apply trained PCA model}
+test.data <- predict(pca_var,newdata = testing1)
+```
+
+# Select 10 principal component variables
+```{r Select 10 principal component variable}
+train.data <- train.data[,1:11]
+test.data <- data.frame(test.data[,1:10])
+```
+
+# Setting values for "train control" for K Fold cross-validation and parallelism
+```{r Setting values for "train control"}
+set.seed(123)
+data_ctrl <- trainControl(method = "cv", number = 5, allowParallel = TRUE, savePredictions = TRUE)
+```
+
+
+# Fit 2 models - Gradient Boosting and Random Forest
+```{r Fit 2 models}
+modFit_rf <- train(classe ~.,data=train.data,method="rf",trControl = data_ctrl,verbose=FALSE)
+modFit_gbm <- train(classe ~.,data=train.data,method="gbm",trControl = data_ctrl,verbose=FALSE)
+```
+
+# Accuracy
+```{r Accuracy}
+modFit_gbm$resample
+modFit_rf$resample
+```
+
+# Model selection
+We will choose random forest as our model as we can obtain accuracy ~ 95%
+
+# Expected out of sample error for various class
+```{r Expected out of sample error}
+modFit_rf$finalModel
+```
+
+# Predict on test dataset
+```{r Predict on test dataset}
+predict(modFit_rf,newdata = test.data)
+```
+
+## Conclusion
+Random Forest proved to be a very effective classification algorithm for this project ; we could get a descent accuracy with this and so didn't look for other techniques.
